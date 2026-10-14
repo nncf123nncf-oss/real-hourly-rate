@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本当の時給</title>
+<meta name="description" content="案件ごとに報酬・作業時間・修正や打合せの時間・経費を入れると、作業時間だけで割った時給と、全部含めた時給を並べて出します。入力はこの端末の中だけで処理し、保存もしません。">
+<style>
+  :root {
+    --bg: #f8f4f1; --surface: #ffffff; --ink: #231c18; --ink2: #483d37; --ink3: #62544c;
+    --line: #dcd1ca; --line-strong: #80726a; --accent: #B5471F; --accent-ink: #ffffff; --accent-soft: #fbe9df;
+    --low-bg: #ffe6d6; --low-ink: #7a2a0a; --danger: #a8231b;
+    --c-work: #3c5a6e; --c-fix: #B5471F; --c-meet: #6b6259;
+    --font: "Hiragino Sans","Yu Gothic","BIZ UDPGothic","Noto Sans JP",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #171210; --surface: #221b18; --ink: #f4ede8; --ink2: #d3c7bf; --ink3: #ab9d94;
+      --line: #40342e; --line-strong: #8a7b72; --accent: #F0A27C; --accent-ink: #3a1707; --accent-soft: #3b261b;
+      --low-bg: #4a2a1a; --low-ink: #ffd8c2; --danger: #ff9a92;
+      --c-work: #8fb4cc; --c-fix: #F0A27C; --c-meet: #b3a89f;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 16px; line-height: 1.6; }
+  main { max-width: 1040px; margin: 0 auto; padding: 16px 16px 32px; }
+  h1 { font-size: 22px; line-height: 1.3; margin: 8px 0 8px; }
+  h2 { font-size: 18px; line-height: 1.4; margin: 0 0 10px; }
+  p { margin: 0 0 10px; }
+  .lead { color: var(--ink2); }
+  .notes { margin: 0 0 16px; padding: 12px 14px 12px 30px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 6px; color: var(--ink2); font-size: 15px; }
+  .notes li { margin: 0 0 4px; } .notes li:last-child { margin: 0; }
+  summary { cursor: pointer; font-weight: 700; padding: 10px 0; min-height: 44px; }
+  details ul { margin: 0 0 12px; padding-left: 1.3em; } details li { margin: 0 0 4px; }
+
+  .layout { display: block; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin: 0 0 16px; }
+  label { display: block; font-size: 14px; font-weight: 700; color: var(--ink2); margin: 0 0 4px; }
+  .hint { font-size: 13px; color: var(--ink3); margin: 4px 0 0; }
+  input[type="text"] { width: 100%; min-height: 44px; padding: 8px 10px; font: inherit; font-size: 16px; color: var(--ink); background: var(--bg); border: 1px solid var(--line-strong); border-radius: 6px; }
+  input[type="text"]:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  input[aria-invalid="true"] { border-color: var(--danger); border-width: 2px; }
+  .err { color: var(--danger); font-size: 13px; margin: 4px 0 0; overflow-wrap: anywhere; }
+  .row { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 10px; }
+  .row2 { grid-template-columns: 1fr 1fr; }
+  .row3 { grid-template-columns: 1fr 1fr 1fr; }
+  .row > div { min-width: 0; }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+  button { min-height: 44px; padding: 8px 14px; font: inherit; font-size: 15px; font-weight: 700; color: var(--accent); background: var(--surface); border: 2px solid var(--accent); border-radius: 6px; cursor: pointer; }
+  button.primary { color: var(--accent-ink); background: var(--accent); }
+  button[aria-pressed="true"] { color: var(--accent-ink); background: var(--accent); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .case { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin: 0 0 12px; background: var(--bg); }
+  .case-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
+  .case-head strong { font-size: 15px; }
+  button.small { min-height: 44px; font-size: 14px; padding: 6px 10px; }
+
+  .sort { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+  .empty { color: var(--ink3); }
+  .res { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin: 0 0 12px; background: var(--surface); }
+  .res h3 { margin: 0 0 8px; font-size: 16px; line-height: 1.4; overflow-wrap: anywhere; }
+  .res h3 .no { color: var(--ink3); font-weight: 400; font-size: 13px; margin-left: 6px; }
+  .mark { display: inline-block; font-size: 13px; font-weight: 700; padding: 1px 8px; border-radius: 4px; background: var(--low-bg); color: var(--low-ink); border-bottom: 3px solid var(--accent); margin-left: 8px; white-space: nowrap; vertical-align: 2px; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin: 0 0 10px; }
+  .stat { min-width: 0; }
+  .stat dt { font-size: 13px; color: var(--ink3); margin: 0; }
+  .stat dd { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+  .stat.real dd { color: var(--accent); }
+  .stat.wide { grid-column: 1 / -1; }
+  .stat.wide dd { font-size: 16px; }
+  .note { font-size: 14px; color: var(--ink2); margin: 0 0 8px; overflow-wrap: anywhere; }
+  .note.warn { color: var(--danger); font-weight: 700; }
+  .bar { display: flex; height: 18px; border-radius: 4px; overflow: hidden; border: 1px solid var(--line-strong); margin: 0 0 6px; }
+  .bar span { display: block; height: 100%; min-width: 0; }
+  .seg-work { background: var(--c-work); }
+  .seg-fix { background: repeating-linear-gradient(45deg, var(--c-fix) 0 4px, transparent 4px 8px); background-color: var(--surface); }
+  .seg-meet { background: radial-gradient(circle, var(--c-meet) 1.6px, transparent 2px) 0 0 / 6px 6px; background-color: var(--surface); }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--ink2); margin: 0 0 6px; padding: 0; list-style: none; }
+  .legend li { display: inline-flex; align-items: center; gap: 5px; }
+  .sw { display: inline-block; width: 14px; height: 14px; border: 1px solid var(--line-strong); border-radius: 3px; flex: none; }
+  .total { border: 2px solid var(--accent); border-radius: 8px; padding: 12px; background: var(--accent-soft); color: var(--ink); }
+  .total h3 { margin: 0 0 8px; font-size: 16px; }
+  .total .stat dd { color: var(--ink); }
+
+  .mw-footer { box-sizing: border-box; width: 100%; max-width: 100%; margin: 24px 0 0; padding: 16px; background: #F7F7F8;
+    border: 1px solid #D8D8DC; border-radius: 6px; color: #3A3A3E; font-family: system-ui, sans-serif; font-size: 12px; line-height: 1.7; }
+  .mw-footer p { margin: 0 0 6px; } .mw-footer p:last-child { margin-bottom: 0; } .mw-footer a { color: #0B5AA6; display: inline-block; padding: 13px 0; }
+
+  @media (min-width: 880px) {
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+    .sticky { position: sticky; top: 16px; }
+    .row3 { gap: 12px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>本当の時給</h1>
+  <p class="lead">案件ごとに、報酬・作業時間・修正やり直しの時間・打合せの時間・経費を入れると、「作業時間だけで割った時給」と「全部含めた時給」を並べて出します。</p>
+  <ul class="notes">
+    <li><strong>手取りの時給ではありません。</strong>税金・社会保険・移動・営業や見積の時間・待ち時間は入っていません。</li>
+    <li>時間は自己申告です。記憶で入れた時間には誤差が出ます。</li>
+    <li>入力はこの端末の中だけで処理し、保存しません。ページを閉じると消えます。</li>
+  </ul>
+
+  <div class="layout">
+    <section class="panel" aria-labelledby="in-h">
+      <h2 id="in-h">案件を入れる</h2>
+      <div class="row">
+        <div>
+          <label for="ref">基準の時給（任意）</label>
+          <input type="text" id="ref" inputmode="decimal" autocomplete="off" placeholder="例: 2500">
+          <p class="hint">自分で決めた目安の円。入れると、全部含めた時給がこれより低い案件に印がつきます。この道具は水準を提案しません。</p>
+          <p class="err" id="ref-err" hidden></p>
+        </div>
+      </div>
+      <p class="hint">報酬は「受け取る金額」を、税込か税抜のどちらかに揃えて入れてください。案件名に実在の取引先名を入れると、画面を撮ったときに写ります。</p>
+      <div class="btns">
+        <button type="button" id="sample">サンプルで試す</button>
+        <button type="button" id="clear">全部消す</button>
+      </div>
+      <div id="cases"></div>
+      <button type="button" class="primary" id="add">案件を追加</button>
+      <p class="hint" id="add-hint">案件は10件まで入れられます。</p>
+    </section>
+
+    <section class="sticky" aria-labelledby="out-h">
+      <div class="panel">
+        <h2 id="out-h">結果</h2>
+        <div class="sort" role="group" aria-label="並べ方">
+          <button type="button" id="sort-low" aria-pressed="true">全部含めた時給の低い順</button>
+          <button type="button" id="sort-in" aria-pressed="false">入力した順</button>
+        </div>
+        <div id="results" aria-live="polite"><p class="empty">報酬と時間を入れると、ここに時給が出ます。</p></div>
+        <div id="total"></div>
+      </div>
+    </section>
+  </div>
+
+  <details>
+    <summary>見ているもの・見ないもの</summary>
+    <ul>
+      <li>作業だけの時給 ＝ 報酬 ÷ 作業時間（経費は引きません）</li>
+      <li>全部含めた時給 ＝（報酬 − 経費）÷（作業 ＋ 修正 ＋ 打合せ）</li>
+      <li>全体の合計は、全部含めた時給が出せた案件だけを足して計算します</li>
+    </ul>
+    <ul>
+      <li>見ていないもの: 税金・社会保険・手取り、移動・営業・見積・待ち時間、道具代や家賃の按分、相場や他の人との比較</li>
+      <li>この道具は、続ける・やめる・値上げするといった判断はしません。数字の差を見せるだけです</li>
+    </ul>
+  </details>
+
+  <footer class="mw-footer">
+    <p>みちAIワークス（MICHI AI WORKS）／代表 田中　泉</p>
+    <p>運営: <a href="https://michi-portfolio.vercel.app/" rel="noopener">みちAIワークス 公式サイト</a>（https://michi-portfolio.vercel.app/ ）／ お問い合わせ: <a href="mailto:nncf123nncf@gmail.com">nncf123nncf@gmail.com</a></p>
+    <p>入力した数字はこのページの中（お使いの端末のブラウザ）だけで処理し、サーバーには送信せず、保存もしません。ページを閉じると消えます。アクセス解析（Cloudflare Web Analytics）で、ページの閲覧状況（閲覧数・参照元・ブラウザの種類など）を計測しています。入力した数字は送信しません。</p>
+    <p>このページの時給は手取りの時給ではなく、税金や社会保険は入っていません。判断はご自身で行ってください。</p>
+    <p>ログイン・会員登録・パスワードの入力を求めることはありません。</p>
+  </footer>
+</main>
+
+<script id="core">
+/* 計算の部分（画面を使わない）。source/run-checks.js がここだけを取り出して検算する */
+var RH = (function () {
+  'use strict';
+  var MAX_MONEY = 99999999, MAX_HOURS = 9999, MAX_CASES = 10;
+
+  function normalize(s) {
+    s = String(s == null ? '' : s);
+    try { s = s.normalize('NFKC'); } catch (e) {}
+    return s;
+  }
+
+  /* kind: 'money' | 'hours'。戻り値: {empty:true} | {error:'…'} | {value:数}  */
+  function parse(raw, kind) {
+    var s = normalize(raw).replace(/[\s　]+/g, '');
+    if (s === '') return { empty: true };
+    if (/^[-−‐‒–—ー]/.test(s)) return { error: '0以上の数で入れてください' };
+    s = s.replace(/,/g, '');
+    if (kind === 'money') s = s.replace(/円$/, '');
+    else s = s.replace(/(時間|h)$/i, '');
+    if (s === '') return { error: '数字を入れてください' };
+    var v;
+    if (/^\d+(\.\d+)?$/.test(s)) {
+      v = parseFloat(s);
+    } else if (kind === 'hours' && /^\d+:\d{1,2}$/.test(s)) {
+      var p = s.split(':'), m = parseInt(p[1], 10);
+      if (m >= 60) return { error: '分は0〜59で入れてください' };
+      v = parseInt(p[0], 10) + m / 60;
+    } else {
+      return { error: kind === 'hours' ? '1.5 または 1:30 の形で入れてください' : '数字だけで入れてください（例: 50000）' };
+    }
+    if (!isFinite(v) || v > (kind === 'money' ? MAX_MONEY : MAX_HOURS)) return { error: '大きすぎる入力です' };
+    return { value: v };
+  }
+
+  /* 円未満の四捨五入。負の値も絶対値で丸める（-0.5 → -1） */
+  function roundYen(x) {
+    var r = Math.round(Math.abs(x));
+    return (x < 0 && r !== 0) ? -r : r;
+  }
+  function fmtYen(x) {
+    var r = roundYen(x);
+    return (r < 0 ? '−' : '') + Math.abs(r).toLocaleString('ja-JP') + '円';
+  }
+  function fmtHours(h) { return String(Number(h.toFixed(2))) + '時間'; }
+
+  var FIELDS = [['revenue', 'money'], ['work', 'hours'], ['fix', 'hours'], ['meet', 'hours'], ['expense', 'money']];
+
+  /* 1件の案件を計算する。c = {name, revenue, work, fix, meet, expense}（すべて入力の文字列） */
+  function compute(c) {
+    var r = { blank: true, errors: {}, hasError: false, rev: null, exp: 0, work: 0, fix: 0, meet: 0, total: 0,
+              hourlyWork: null, hourlyReal: null, drop: null, dropPct: null, overExpense: false, noGap: false,
+              fixMeetPct: null, needRevenue: false };
+    var DEST = { revenue: 'rev', work: 'work', fix: 'fix', meet: 'meet', expense: 'exp' };
+    FIELDS.forEach(function (f) {
+      var k = f[0], p = parse(c[k], f[1]);
+      if (p.empty) return;
+      r.blank = false;
+      if (p.error) { r.errors[k] = p.error; r.hasError = true; return; }
+      r[DEST[k]] = p.value;
+    });
+    if (r.blank) return r; /* 名前だけの案件は空扱い */
+    r.total = r.work + r.fix + r.meet;
+    if (r.hasError) return r;
+    if (r.rev == null) { r.needRevenue = true; return r; }
+    if (r.work > 0) r.hourlyWork = r.rev / r.work;
+    if (r.total > 0) {
+      r.hourlyReal = (r.rev - r.exp) / r.total;
+      r.fixMeetPct = Math.round((r.fix + r.meet) / r.total * 100);
+    }
+    if (r.hourlyWork != null && r.hourlyReal != null) {
+      r.drop = r.hourlyWork - r.hourlyReal;
+      if (r.hourlyWork > 0) r.dropPct = Math.round(r.drop / r.hourlyWork * 100);
+      r.noGap = roundYen(r.hourlyWork) === roundYen(r.hourlyReal);
+    }
+    r.overExpense = r.exp > r.rev;
+    return r;
+  }
+
+  /* 基準の時給。{none:true} | {error} | {value} */
+  function parseRef(raw) {
+    var p = parse(raw, 'money');
+    if (p.empty) return { none: true };
+    if (p.error) return { error: p.error };
+    if (p.value === 0) return { none: true, zero: true };
+    return { value: p.value };
+  }
+  function isLow(res, ref) {
+    return ref && ref.value != null && res.hourlyReal != null && res.hourlyReal < ref.value;
+  }
+
+  /* 並べ替え。items = [{index, res}]。mode 'low' | 'input'。計算できない案件は末尾 */
+  function order(items, mode) {
+    var arr = items.slice();
+    if (mode === 'low') {
+      arr.sort(function (a, b) {
+        var ax = a.res.hourlyReal, bx = b.res.hourlyReal;
+        if (ax == null && bx == null) return a.index - b.index;
+        if (ax == null) return 1;
+        if (bx == null) return -1;
+        return ax - bx || a.index - b.index;
+      });
+    } else {
+      arr.sort(function (a, b) { return a.index - b.index; });
+    }
+    return arr;
+  }
+
+  /* 全体の合計。全部含めた時給が出せた案件だけを足す。2件以上のときだけ値を返す */
+  function totals(results) {
+    var inc = results.filter(function (r) { return r.hourlyReal != null; });
+    if (inc.length < 2) return null;
+    var rev = 0, exp = 0, hrs = 0;
+    inc.forEach(function (r) { rev += r.rev; exp += r.exp; hrs += r.total; });
+    return { count: inc.length, rev: rev, exp: exp, hours: hrs, hourly: (rev - exp) / hrs };
+  }
+
+  return { MAX_CASES: MAX_CASES, parse: parse, parseRef: parseRef, compute: compute, isLow: isLow, order: order, totals: totals,
+           roundYen: roundYen, fmtYen: fmtYen, fmtHours: fmtHours, FIELDS: FIELDS };
+})();
+</script>
+
+<script id="ui">
+(function () {
+  'use strict';
+  var state = [];            /* [{id, name, revenue, work, fix, meet, expense}] 入力の文字列 */
+  var nextId = 1, sortMode = 'low';
+  var casesEl = document.getElementById('cases');
+  var resultsEl = document.getElementById('results');
+  var totalEl = document.getElementById('total');
+  var refEl = document.getElementById('ref'), refErr = document.getElementById('ref-err');
+  var addBtn = document.getElementById('add'), addHint = document.getElementById('add-hint');
+
+  var LABELS = { revenue: '報酬（円）', work: '作業の時間', fix: '修正・やり直しの時間', meet: '打合せ・連絡の時間', expense: '経費（円・任意）' };
+  var HINTS = { work: '1.5 または 1:30', fix: '1.5 または 1:30', meet: '1.5 または 1:30' };
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function newCase() { return { id: nextId++, name: '', revenue: '', work: '', fix: '', meet: '', expense: '' }; }
+
+  function buildCases() {
+    casesEl.textContent = '';
+    state.forEach(function (c, i) {
+      var box = el('div', 'case'); box.setAttribute('role', 'group'); box.setAttribute('aria-label', '案件' + (i + 1));
+      var head = el('div', 'case-head');
+      head.appendChild(el('strong', null, '案件' + (i + 1)));
+      var del = el('button', 'small', 'この案件を消す'); del.type = 'button';
+      del.addEventListener('click', function () {
+        state.splice(i, 1);
+        if (!state.length) state.push(newCase());
+        buildCases(); render();
+      });
+      head.appendChild(del); box.appendChild(head);
+
+      function field(key, kind, wrapCls) {
+        var w = el('div'); var id = 'f' + c.id + '-' + key;
+        var lab = el('label', null, key === 'name' ? '案件名（任意・20字まで）' : LABELS[key]); lab.htmlFor = id;
+        var inp = el('input'); inp.type = 'text'; inp.id = id; inp.autocomplete = 'off'; inp.value = c[key];
+        if (key === 'name') { inp.maxLength = 20; inp.placeholder = '例: ロゴ制作'; }
+        else { inp.setAttribute('inputmode', 'decimal'); inp.setAttribute('enterkeyhint', 'next'); if (HINTS[key]) inp.placeholder = HINTS[key]; }
+        var err = el('p', 'err'); err.id = id + '-err'; err.hidden = true; inp.setAttribute('aria-describedby', err.id);
+        inp.addEventListener('input', function () { c[key] = inp.value; render(); });
+        w.appendChild(lab); w.appendChild(inp); w.appendChild(err);
+        return w;
+      }
+      var r0 = el('div', 'row'); r0.appendChild(field('name'));
+      var r1 = el('div', 'row row2'); r1.appendChild(field('revenue')); r1.appendChild(field('expense'));
+      var r2 = el('div', 'row row3'); r2.appendChild(field('work')); r2.appendChild(field('fix')); r2.appendChild(field('meet'));
+      box.appendChild(r0); box.appendChild(r1); box.appendChild(r2);
+      casesEl.appendChild(box);
+    });
+    var full = state.length >= RH.MAX_CASES;
+    addBtn.disabled = full;
+    addHint.textContent = full ? '案件は10件までです。' : '案件は10件まで入れられます。';
+  }
+
+  function bar(res) {
+    var wrap = el('div');
+    var b = el('div', 'bar'); b.setAttribute('role', 'img');
+    var parts = [['work', '作業', res.work], ['fix', '修正', res.fix], ['meet', '打合せ', res.meet]];
+    var desc = [];
+    parts.forEach(function (p) {
+      if (p[2] > 0) {
+        var s = el('span', 'seg-' + p[0]); s.style.flexGrow = String(p[2]); s.style.flexBasis = '0'; b.appendChild(s);
+      }
+      desc.push(p[1] + RH.fmtHours(p[2]));
+    });
+    b.setAttribute('aria-label', '時間の内訳: ' + desc.join('、'));
+    wrap.appendChild(b);
+    var lg = el('ul', 'legend');
+    parts.forEach(function (p) {
+      var li = el('li'); var sw = el('span', 'sw seg-' + p[0]); sw.setAttribute('aria-hidden', 'true');
+      li.appendChild(sw); li.appendChild(document.createTextNode(p[1] + ' ' + RH.fmtHours(p[2])));
+      lg.appendChild(li);
+    });
+    wrap.appendChild(lg);
+    return wrap;
+  }
+
+  function stat(cls, label, value) {
+    var d = el('div', 'stat ' + cls);
+    d.appendChild(el('dt', null, label)); d.appendChild(el('dd', null, value));
+    return d;
+  }
+
+  function render() {
+    var ref = RH.parseRef(refEl.value);
+    refEl.setAttribute('aria-invalid', ref.error ? 'true' : 'false');
+    refErr.hidden = !ref.error; refErr.textContent = ref.error || '';
+
+    var items = [], results = [];
+    state.forEach(function (c, i) {
+      var res = RH.compute(c);
+      /* 各欄のエラー表示 */
+      RH.FIELDS.forEach(function (f) {
+        var inp = document.getElementById('f' + c.id + '-' + f[0]), er = document.getElementById('f' + c.id + '-' + f[0] + '-err');
+        if (!inp) return;
+        var m = res.errors[f[0]];
+        inp.setAttribute('aria-invalid', m ? 'true' : 'false');
+        er.hidden = !m; er.textContent = m || '';
+      });
+      if (!res.blank) items.push({ index: i, res: res, c: c });
+      results.push(res);
+    });
+
+    resultsEl.textContent = '';
+    if (!items.length) {
+      resultsEl.appendChild(el('p', 'empty', '報酬と時間を入れると、ここに時給が出ます。'));
+      totalEl.textContent = '';
+      return;
+    }
+    RH.order(items, sortMode).forEach(function (it) {
+      var res = it.res, a = el('article', 'res');
+      var h = el('h3'); h.appendChild(document.createTextNode(it.c.name.trim() || ('案件' + (it.index + 1))));
+      if (it.c.name.trim()) h.appendChild(el('span', 'no', '（案件' + (it.index + 1) + '）'));
+      if (RH.isLow(res, ref)) h.appendChild(el('span', 'mark', '目安より低い'));
+      a.appendChild(h);
+
+      if (res.hasError) { a.appendChild(el('p', 'note warn', '入力を確認してください（赤字の欄を見直すと計算されます）。')); resultsEl.appendChild(a); return; }
+      if (res.needRevenue) { a.appendChild(el('p', 'note', '報酬を入れてください。')); resultsEl.appendChild(a); return; }
+
+      var dl = el('dl', 'stats');
+      dl.appendChild(stat('', '作業時間だけで割った時給', res.hourlyWork != null ? RH.fmtYen(res.hourlyWork) : '作業時間を入れてください'));
+      dl.appendChild(stat('real', '全部含めた時給', res.hourlyReal != null ? RH.fmtYen(res.hourlyReal) : '時間を入れてください'));
+      if (res.drop != null) {
+        var t;
+        if (res.noGap) t = '差なし';
+        else t = RH.fmtYen(res.drop) + ' 下がる' + (res.dropPct != null ? '（' + res.dropPct + '%）' : '');
+        dl.appendChild(stat('wide', '作業だけ → 全部含めた差', t));
+      }
+      a.appendChild(dl);
+      if (res.noGap) a.appendChild(el('p', 'note', '修正・打合せ・経費が入っていないため、2つの時給は同じです。'));
+      if (res.overExpense) a.appendChild(el('p', 'note warn', '経費のほうが報酬より多くなっています。'));
+      if (res.total > 0) {
+        a.appendChild(bar(res));
+        a.appendChild(el('p', 'note', '修正と打合せで、全体の' + res.fixMeetPct + '%（全体 ' + RH.fmtHours(res.total) + '）'));
+      }
+      resultsEl.appendChild(a);
+    });
+
+    totalEl.textContent = '';
+    var tt = RH.totals(results);
+    if (tt) {
+      var box = el('div', 'total');
+      box.appendChild(el('h3', null, '全体の合計（' + tt.count + '件）'));
+      var dl2 = el('dl', 'stats');
+      dl2.appendChild(stat('', '報酬の合計', RH.fmtYen(tt.rev)));
+      dl2.appendChild(stat('', '経費の合計', RH.fmtYen(tt.exp)));
+      dl2.appendChild(stat('', '合計の時間', RH.fmtHours(tt.hours)));
+      dl2.appendChild(stat('real', '全体の全部含めた時給', RH.fmtYen(tt.hourly)));
+      box.appendChild(dl2);
+      totalEl.appendChild(box);
+    }
+  }
+
+  function setSort(mode) {
+    sortMode = mode;
+    document.getElementById('sort-low').setAttribute('aria-pressed', mode === 'low' ? 'true' : 'false');
+    document.getElementById('sort-in').setAttribute('aria-pressed', mode === 'input' ? 'true' : 'false');
+    render();
+  }
+
+  document.getElementById('sort-low').addEventListener('click', function () { setSort('low'); });
+  document.getElementById('sort-in').addEventListener('click', function () { setSort('input'); });
+  refEl.addEventListener('input', render);
+  addBtn.addEventListener('click', function () {
+    if (state.length >= RH.MAX_CASES) return;
+    state.push(newCase()); buildCases(); render();
+    var last = casesEl.lastElementChild; if (last) { var i = last.querySelector('input'); if (i) i.focus(); }
+  });
+  document.getElementById('clear').addEventListener('click', function () {
+    state = [newCase()]; refEl.value = ''; buildCases(); render();
+  });
+  document.getElementById('sample').addEventListener('click', function () {
+    var S = [['ロゴ制作', '50000', '8', '5', '2', '0'], ['記事執筆', '30000', '6', '1', '0.5', ''],
+             ['バナー制作', '20000', '3', '4', '3', '2000'], ['動画編集', '80000', '20', '10', '4', '5000']];
+    state = S.map(function (s) { var c = newCase(); c.name = s[0]; c.revenue = s[1]; c.work = s[2]; c.fix = s[3]; c.meet = s[4]; c.expense = s[5]; return c; });
+    refEl.value = '2500'; buildCases(); render();
+  });
+
+  state.push(newCase()); buildCases(); render();
+})();
+</script>
+
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js"
+        data-cf-beacon='{"token": "b4c9f7e78daf4edb84ef52b88633f649"}'></script>
+</body>
+</html>
