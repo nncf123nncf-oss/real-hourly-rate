@@ -115,7 +115,6 @@
           <p class="err" id="ref-err" hidden></p>
         </div>
       </div>
-      <p class="hint">報酬は「受け取る金額」を、税込か税抜のどちらかに揃えて入れてください。案件名に実在の取引先名を入れると、画面を撮ったときに写ります。</p>
       <div class="btns">
         <button type="button" id="sample">サンプルで試す</button>
         <button type="button" id="clear">全部消す</button>
@@ -123,6 +122,7 @@
       <div id="cases"></div>
       <button type="button" class="primary" id="add">案件を追加</button>
       <p class="hint" id="add-hint">案件は10件まで入れられます。</p>
+      <p class="hint">報酬は「受け取る金額」を、税込か税抜のどちらかに揃えて入れてください。時間は 1.5 のように入れます（1:30 の形も使えます）。修正＝やり直し、打合せ＝連絡も含みます。案件名に実在の取引先名を入れると、画面を撮ったときに写ります。</p>
     </section>
 
     <section class="sticky" aria-labelledby="out-h">
@@ -132,7 +132,7 @@
           <button type="button" id="sort-low" aria-pressed="true">全部含めた時給の低い順</button>
           <button type="button" id="sort-in" aria-pressed="false">入力した順</button>
         </div>
-        <div id="results" aria-live="polite"><p class="empty">報酬と時間を入れると、ここに時給が出ます。</p></div>
+        <div id="results"><p class="empty">報酬と時間を入れると、ここに時給が出ます。</p></div>
         <div id="total"></div>
       </div>
     </section>
@@ -146,7 +146,7 @@
       <li>全体の合計は、全部含めた時給が出せた案件だけを足して計算します</li>
     </ul>
     <ul>
-      <li>見ていないもの: 税金・社会保険・手取り、移動・営業・見積・待ち時間、道具代や家賃の按分、相場や他の人との比較</li>
+      <li>見ていないもの: 税金・社会保険・手取り、移動・営業・見積・待ち時間、道具代や家賃の按分、他の人との比較</li>
       <li>この道具は、続ける・やめる・値上げするといった判断はしません。数字の差を見せるだけです</li>
     </ul>
   </details>
@@ -177,7 +177,11 @@ var RH = (function () {
     var s = normalize(raw).replace(/[\s　]+/g, '');
     if (s === '') return { empty: true };
     if (/^[-−‐‒–—ー]/.test(s)) return { error: '0以上の数で入れてください' };
-    s = s.replace(/,/g, '');
+    if (s.indexOf(',') >= 0) {
+      /* カンマは円の千位区切り（50,000）のときだけ読む。「1,5」のような小数カンマは桁がずれるので受けない */
+      if (kind === 'money' && /^\d{1,3}(,\d{3})+(\.\d+)?(円)?$/.test(s)) s = s.replace(/,/g, '');
+      else return { error: kind === 'hours' ? '1.5 または 1:30 の形で入れてください' : '数字だけで入れてください（例: 50000）' };
+    }
     if (kind === 'money') s = s.replace(/円$/, '');
     else s = s.replace(/(時間|h)$/i, '');
     if (s === '') return { error: '数字を入れてください' };
@@ -248,7 +252,7 @@ var RH = (function () {
     return { value: p.value };
   }
   function isLow(res, ref) {
-    return ref && ref.value != null && res.hourlyReal != null && res.hourlyReal < ref.value;
+    return !!(ref && ref.value != null && res.hourlyReal != null && roundYen(res.hourlyReal) < roundYen(ref.value));
   }
 
   /* 並べ替え。items = [{index, res}]。mode 'low' | 'input'。計算できない案件は末尾 */
@@ -293,8 +297,8 @@ var RH = (function () {
   var refEl = document.getElementById('ref'), refErr = document.getElementById('ref-err');
   var addBtn = document.getElementById('add'), addHint = document.getElementById('add-hint');
 
-  var LABELS = { revenue: '報酬（円）', work: '作業の時間', fix: '修正・やり直しの時間', meet: '打合せ・連絡の時間', expense: '経費（円・任意）' };
-  var HINTS = { work: '1.5 または 1:30', fix: '1.5 または 1:30', meet: '1.5 または 1:30' };
+  var LABELS = { revenue: '報酬（円）', work: '作業（時間）', fix: '修正（時間）', meet: '打合せ（時間）', expense: '経費（円・任意）' };
+  var HINTS = { work: '1.5', fix: '1.5', meet: '1.5' };
 
   function el(tag, cls, text) {
     var e = document.createElement(tag);
@@ -315,6 +319,7 @@ var RH = (function () {
         state.splice(i, 1);
         if (!state.length) state.push(newCase());
         buildCases(); render();
+        var dels = casesEl.querySelectorAll('.case-head button'); var nx = dels[Math.min(i, dels.length - 1)]; if (nx) nx.focus();
       });
       head.appendChild(del); box.appendChild(head);
 
@@ -347,7 +352,7 @@ var RH = (function () {
     var desc = [];
     parts.forEach(function (p) {
       if (p[2] > 0) {
-        var s = el('span', 'seg-' + p[0]); s.style.flexGrow = String(p[2]); s.style.flexBasis = '0'; b.appendChild(s);
+        var s = el('span', 'seg-' + p[0]); s.style.flexGrow = String(p[2] / res.total * 100); s.style.flexBasis = '0'; b.appendChild(s);
       }
       desc.push(p[1] + RH.fmtHours(p[2]));
     });
@@ -372,7 +377,8 @@ var RH = (function () {
   function render() {
     var ref = RH.parseRef(refEl.value);
     refEl.setAttribute('aria-invalid', ref.error ? 'true' : 'false');
-    refErr.hidden = !ref.error; refErr.textContent = ref.error || '';
+    var refMsg = ref.error || (ref.zero ? '0円は目安として使えません。印はつけません。' : '');
+    refErr.hidden = !refMsg; refErr.textContent = refMsg;
 
     var items = [], results = [];
     state.forEach(function (c, i) {
@@ -402,11 +408,11 @@ var RH = (function () {
       if (RH.isLow(res, ref)) h.appendChild(el('span', 'mark', '目安より低い'));
       a.appendChild(h);
 
-      if (res.hasError) { a.appendChild(el('p', 'note warn', '入力を確認してください（赤字の欄を見直すと計算されます）。')); resultsEl.appendChild(a); return; }
+      if (res.hasError) { a.appendChild(el('p', 'note warn', '入力を確認してください（エラーが出ている欄を見直すと計算されます）。')); resultsEl.appendChild(a); return; }
       if (res.needRevenue) { a.appendChild(el('p', 'note', '報酬を入れてください。')); resultsEl.appendChild(a); return; }
 
       var dl = el('dl', 'stats');
-      dl.appendChild(stat('', '作業時間だけで割った時給', res.hourlyWork != null ? RH.fmtYen(res.hourlyWork) : '作業時間を入れてください'));
+      dl.appendChild(stat('', '作業だけの時給', res.hourlyWork != null ? RH.fmtYen(res.hourlyWork) : '作業時間を入れてください'));
       dl.appendChild(stat('real', '全部含めた時給', res.hourlyReal != null ? RH.fmtYen(res.hourlyReal) : '時間を入れてください'));
       if (res.drop != null) {
         var t;
@@ -415,7 +421,7 @@ var RH = (function () {
         dl.appendChild(stat('wide', '作業だけ → 全部含めた差', t));
       }
       a.appendChild(dl);
-      if (res.noGap) a.appendChild(el('p', 'note', '修正・打合せ・経費が入っていないため、2つの時給は同じです。'));
+      if (res.noGap) a.appendChild(el('p', 'note', (res.fix + res.meet + res.exp === 0) ? '修正・打合せ・経費が入っていないため、2つの時給は同じです。' : '円未満を丸めると、2つの時給は同じです。'));
       if (res.overExpense) a.appendChild(el('p', 'note warn', '経費のほうが報酬より多くなっています。'));
       if (res.total > 0) {
         a.appendChild(bar(res));

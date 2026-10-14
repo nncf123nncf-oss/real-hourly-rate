@@ -98,6 +98,19 @@ r = C({ revenue: '10000', work: '5' }); eq('S9 noGap', r.noGap, true);
 r = C({ revenue: '10000', work: '1', fix: '19' }); eq('S9 95%', r.fixMeetPct, 95);
 r = C({ revenue: '10000', fix: '1' }); eq('S9 fix only', [r.hourlyReal, r.fixMeetPct], [10000, 100]);
 
+// レビュー①の反映
+eq('R2 float equal not low', RH.isLow(C({ revenue: '750', work: '0.1', fix: '0.2' }), RH.parseRef('2500')), false);
+eq('R2 display-equal not low', RH.isLow(C({ revenue: '2499.6', work: '1' }), RH.parseRef('2500')), false);
+eq('R2 really low', RH.isLow(C({ revenue: '2498', work: '1' }), RH.parseRef('2500')), true);
+eq('R4 hours 1,5 rejected', !!P('1,5', 'hours').error, true);
+eq('R4 money 1,5 rejected', !!P('1,5').error, true);
+eq('R4 money 1,000 ok', P('1,000').value, 1000);
+eq('R4 money 12,345,678 ok', P('12,345,678').value, 12345678);
+eq('R4 money 12,34 rejected', !!P('12,34').error, true);
+eq('R4 hours 1,000 rejected', !!P('1,000', 'hours').error, true);
+eq('R7 noGap with fix', C({ revenue: '100000', work: '100', fix: '0.04' }).noGap, true);
+eq('R0 zero ref', RH.parseRef('0').zero, true);
+
 // 合計
 eq('totals single', RH.totals([S[0]]), null);
 eq('totals skips incomplete', RH.totals([S[0], C({ work: '1' }), S[1]]).count, 2);
